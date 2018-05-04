@@ -1,0 +1,9 @@
+version: '3'
+services:
+  rabbitmq:
+    image: rabbitmq:3.7.4-alpine
+    volumes:
+      - './servers/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro'
+    ports:
+      - '1883:1883'
+      - '15672:15672'
