@@ -1,0 +1,9 @@
+{
+  "name": "mqtt-test",
+  "version": "0.0.1",
+  "dependencies": {
+    "mqtt": "^2.17.0",
+    "performance-now": "^2.1.0",
+    "nanotimer": "^0.3.15"
+  }
+}
