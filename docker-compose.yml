@@ -6,4 +6,24 @@ services:
       - './servers/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro'
     ports:
       - '1883:1883'
+      # guest / guest
       - '15672:15672'
+
+  emqttd:
+    build: servers/emqttd
+    ports:
+      - '1883:1883'
+      # admin / public
+      - '18083:18083'
+
+  mosca:
+    image: matteocollina/mosca:v2.8.1
+    ports:
+      - '1883:1883'
+      # - '80:80'
+
+  mosquitto:
+    image: eclipse-mosquitto:1.4.12
+    ports:
+      - '1883:1883'
+      - '9001:9001'
