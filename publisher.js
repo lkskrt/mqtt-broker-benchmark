@@ -5,28 +5,30 @@ const now = require('performance-now');
 const fs = require('fs');
 
 // config
-const resultJsonPath = 'results.json';
+const resultJsonPath = 'results/results.json';
 const paramsJsonPath = 'params.json';
+const resumeLastTest = false;
 const testDurationInSeconds = 10;
 const payloadSizeInByte = {
-    start: 0,
-    end: 1024,
-    stepSize: 100,
+    start: 2,
+    end: Math.pow(1024, 2),
+    stepFactor: 8,
 };
 const messagesPerSecond = {
     start: 1000,
-    end: 40000,
-    stepSize: 4000,
+    end: 80000,
+    stepSize: 10000,
 };
-const bytePerSecondCap = Math.pow(1024, 2); // 1MB/s
-
+const bytePerSecondCap = 50 * Math.pow(1024, 2);
+// const bytePerSecondCap = Number.POSITIVE_INFINITY;
 
 const serverUrl = `mqtt://${ process.env.MQTT_HOST || 'test.mosquitto.org' }`;
 
+console.log(`Trying to connect to ${serverUrl}`);
 
 async function init () {
     let params = [];
-    if (fs.existsSync(paramsJsonPath)) {
+    if (resumeLastTest && fs.existsSync(paramsJsonPath)) {
         params = JSON.parse(fs.readFileSync(paramsJsonPath));
     } else {
         params = generateParams();
@@ -37,7 +39,7 @@ async function init () {
     console.log(`Total execution will take at least: ${paramsToTest.length * testDurationInSeconds} seconds`);
 
     let results = [];
-    if (fs.existsSync(resultJsonPath)) {
+    if (resumeLastTest && fs.existsSync(resultJsonPath)) {
         results = JSON.parse(fs.readFileSync(resultJsonPath));
     }
 
@@ -51,7 +53,7 @@ async function init () {
 }
 
 async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
-    console.log(`${(new Date()).toISOString()} | Starting test: ${currentPayloadSizeInByte} | ${currentMessagesPerSecond}`);
+    console.log(`${(new Date()).toISOString()} | Starting test with payload size ${currentPayloadSizeInByte} B and ${currentMessagesPerSecond} msg/s`);
     const messageCount = Math.ceil(testDurationInSeconds * currentMessagesPerSecond);
     const intervalInMilliseconds = 1000 / currentMessagesPerSecond;
 
@@ -107,9 +109,8 @@ async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
 function generateParams () {
     const params = [];
     for (let i = messagesPerSecond.start; i < messagesPerSecond.end; i += messagesPerSecond.stepSize) {
-        for (let j = payloadSizeInByte.start; j < payloadSizeInByte.end; j += payloadSizeInByte.stepSize) {
-            const bytesPerSecond = i * j;
-            if (bytesPerSecond > bytePerSecondCap) {
+        for (let j = payloadSizeInByte.start; j < payloadSizeInByte.end; j *= payloadSizeInByte.stepFactor) {
+            if (j * i > bytePerSecondCap) {
                 continue;
             }
             params.push({

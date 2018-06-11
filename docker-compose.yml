@@ -1,5 +1,21 @@
 version: '3'
 services:
+  publisher:
+    image: node:10
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+    command: node publisher.js
+    volumes:
+      - './:/var/app'
+    working_dir: /var/app
+
+  nginx:
+    image: nginx:mainline-alpine
+    volumes:
+      - './results:/usr/share/nginx/html:ro'
+    ports:
+      - '80:80'
+
   rabbitmq:
     image: rabbitmq:3.7.4-alpine
     volumes:
