@@ -1,0 +1,41 @@
+- name: "Setup {{ item }} broker"
+  hosts: broker
+  become: True
+  tasks:
+    - name: Stop running containers
+      command: "docker-compose stop"
+      args:
+        chdir: /srv/test
+
+    - name: Start broker container
+      command: "docker-compose up -d {{ item }}"
+      args:
+        chdir: /srv/test
+
+- name: Start publisher
+  hosts: publisher
+  become: True
+  tasks:
+    - name: Start webserver for live data
+      command: docker-compose up -d nginx
+      args:
+        chdir: /srv/test
+
+    - name: Run publisher
+      command: docker-compose run --rm -T publisher
+      args:
+        chdir: /srv/test
+      environment:
+        MQTT_HOST: "34.247.163.221"
+        # MQTT_HOST: "{{ ec2.instances.1.public_ip }}"
+      register: output
+
+    - name: Publisher output
+      debug:
+        var: output
+
+    - name: Fetch the results
+      fetch:
+        src: /srv/test/results/results.json
+        dest: "../results/{{ item }}_results.json"
+        flat: yes

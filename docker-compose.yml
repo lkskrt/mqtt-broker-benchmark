@@ -4,7 +4,7 @@ services:
     image: node:10
     environment:
       MQTT_HOST: ${MQTT_HOST}
-    command: node publisher.js
+    command: "sh -c 'npm install && node publisher.js'"
     volumes:
       - './:/var/app'
     working_dir: /var/app
@@ -12,7 +12,7 @@ services:
   nginx:
     image: nginx:mainline-alpine
     volumes:
-      - './results:/usr/share/nginx/html:ro'
+      - './:/usr/share/nginx/html:ro'
     ports:
       - '80:80'
 

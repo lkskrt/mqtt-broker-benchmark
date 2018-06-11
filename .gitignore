@@ -1,6 +1,7 @@
 hosts
 params.json
 results/results.json
+ansible/playbook.retry
 
 # Logs
 logs

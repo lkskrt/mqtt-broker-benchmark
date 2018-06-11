@@ -1,0 +1,154 @@
+<html>
+
+<head>
+  <title>Performance Test</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.min.js"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>MQTT Broker Benchmark</h1>
+
+  <script>
+    // Material 400 colors
+    const colors = [
+      "#ef5350", "#ec407a", "#ab47bc", "#7e57c2", "#5c6bc0", "#42a5f5", "#29b6f6", "#26c6da", "#26a69a", "#66bb6a",
+      "#9ccc65", "#d4e157", "#ffee58", "#ffca28", "#ffa726", "#ff7043", "#8d6e63", "#bdbdbd", "#78909c"
+    ];
+
+    function draw(title, datasets) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 200;
+      document.body.appendChild(canvas);
+
+      const chart = new Chart(canvas, {
+        type: 'scatter',
+        data: {
+          datasets: Object.values(datasets),
+        },
+        options: {
+          title: {
+            display: true,
+            text: title,
+          },
+          scales: {
+            yAxes: [{
+              scaleLabel: {
+                labelString: 'Duration (ms)',
+                display: true,
+              },
+              ticks: {
+                beginAtZero: true
+              }
+            }],
+            xAxes: [{
+              scaleLabel: {
+                labelString: 'Messages per second',
+                display: true,
+              }
+            }]
+          },
+        }
+      });
+    }
+
+    const live = window.location.href.indexOf('?live') != -1
+
+    if (live) {
+      fetch('results/results.json')
+        .then(response => response.json())
+        .then(brokerRawData => {
+          const datasets = {};
+
+          brokerRawData.forEach((d, i) => {
+            if (!datasets[d.payloadSizeInByte]) {
+              datasets[d.payloadSizeInByte] = {
+                label: `${d.payloadSizeInByte} B`,
+                borderColor: colors[i % colors.length],
+                fill: false,
+                showLine: true,
+                data: [],
+              }
+            }
+
+            datasets[d.payloadSizeInByte].data.push({
+              x: d.messagesPerSecond,
+              y: d.allSentInMs,
+            });
+          });
+
+          draw('Live', datasets);
+        });
+    } else {
+      const brokers = ['rabbitmq', 'emqttd', 'mosca', 'mosquitto'];
+      const combinedDisplayedPayloadSize = 1024;
+
+      const brokerRawData = {};
+      const datasets = {};
+
+      function fetchBrokerResults(name, i) {
+        return fetch(`results/${name}_results.json`)
+          .then(response => response.json())
+          .then(rawData => {
+            brokerRawData[name] = rawData;
+          });
+      }
+
+      Promise.all(brokers.map(fetchBrokerResults))
+        .then(() => {
+          Object.keys(brokerRawData).forEach((name, brokerIndex) => {
+            const singleDataSet = {};
+
+            if (!datasets[name]) {
+              datasets[name] = {
+                label: name,
+                borderColor: colors[brokerIndex % colors.length],
+                fill: false,
+                showLine: true,
+                data: [],
+              }
+            }
+
+            brokerRawData[name].forEach((d, rawDataIndex) => {
+              if (!singleDataSet[d.payloadSizeInByte]) {
+                singleDataSet[d.payloadSizeInByte] = {
+                  label: `${d.payloadSizeInByte} B`,
+                  borderColor: colors[rawDataIndex % colors.length],
+                  fill: false,
+                  showLine: true,
+                  data: [],
+                }
+              }
+
+              singleDataSet[d.payloadSizeInByte].data.push({
+                x: d.messagesPerSecond,
+                y: d.allSentInMs,
+              });
+
+              if (d.payloadSizeInByte !== combinedDisplayedPayloadSize) {
+                return;
+              }
+
+              datasets[name].data.push({
+                x: d.messagesPerSecond,
+                y: d.allSentInMs,
+              });
+            });
+
+            draw(name, singleDataSet);
+          });
+
+          draw(`Broker performance with ${combinedDisplayedPayloadSize} B payloads`, datasets);
+        })
+    }
+  </script>
+</body>
+
+</html>

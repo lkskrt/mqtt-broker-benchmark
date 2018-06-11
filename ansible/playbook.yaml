@@ -1,0 +1,99 @@
+- name: Create server and client instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    key_name: id_rsa
+    instance_type: m4.large
+    image: ami-58d7e821 # Ubuntu 16.04
+    region: eu-west-1
+  tasks:
+    - name: Launch instances
+      ec2:
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        key_name: "{{ key_name }}"
+        group: default
+        vpc_subnet_id: subnet-0ec8fe6de5527bcce
+        instance_type: "{{ instance_type }}"
+        image: "{{ image }}"
+        wait: true
+        region: "{{ region }}"
+        assign_public_ip: yes
+        # spot_price: 0.1
+        # spot_wait_timeout: 600
+        # spot_launch_group: benchmark
+        count: 2
+      register: ec2
+
+    - name: "Add {{ ec2.instances.0.public_ip }} to host groups"
+      add_host:
+        hostname: "{{ ec2.instances.0.public_ip }}"
+        ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+        ansible_user: ubuntu
+        ansible_python_interpreter: /usr/bin/python3
+        groups:
+          - publisher
+          - launched
+
+    - name: "Add {{ ec2.instances.1.public_ip }} to host groups"
+      add_host:
+        hostname: "{{ ec2.instances.1.public_ip }}"
+        groups:
+          - broker
+          - launched
+
+    - name: Wait for SSH to come up
+      wait_for:
+        host: "{{ item.public_dns_name }}"
+        port: 22
+        delay: 60
+        timeout: 320
+        state: started
+      with_items: "{{ ec2.instances }}"
+
+    - debug:
+        var: ec2.instances
+
+- name: Setup instances
+  hosts: launched
+  become: True
+  roles:
+    - angstwad.docker_ubuntu
+  tasks:
+    - name: Fetching code
+      git:
+        repo: 'https://github.com/lukaskorte/mqtt-performance-test.git'
+        dest: /srv/test
+
+
+# Ansible does not support looping over playbooks :/
+
+- name: Run test
+  vars:
+    item: rabbitmq
+  import_playbook: test-run.yaml
+
+- name: Run test
+  vars:
+    item: emqttd
+  import_playbook: test-run.yaml
+
+- name: Run test
+  vars:
+    item: mosca
+  import_playbook: test-run.yaml
+
+- name: Run test
+  vars:
+    item: mosquitto
+  import_playbook: test-run.yaml
+
+
+- name: Terminate instances
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Terminate instances that were previously launched
+      ec2:
+        state: 'absent'
+        instance_ids: '{{ ec2.instance_ids }}'
