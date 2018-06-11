@@ -65,6 +65,17 @@
         repo: 'https://github.com/lukaskorte/mqtt-performance-test.git'
         dest: /srv/test
 
+- name: "Instance IPs"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "Broker IP"
+      debug:
+        var: groups['broker'][0]
+    - name: "Publisher IP"
+      debug:
+        var: groups['publisher'][0]
+
 
 # Ansible does not support looping over playbooks :/
 

@@ -26,8 +26,7 @@
       args:
         chdir: /srv/test
       environment:
-        MQTT_HOST: "34.247.163.221"
-        # MQTT_HOST: "{{ ec2.instances.1.public_ip }}"
+        MQTT_HOST: "{{ groups['broker'][0] }}"
       register: output
 
     - name: Publisher output
