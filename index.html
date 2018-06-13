@@ -62,30 +62,51 @@
     const live = window.location.href.indexOf('?live') != -1
 
     if (live) {
-      fetch('results/results.json')
-        .then(response => response.json())
-        .then(brokerRawData => {
-          const datasets = {};
+      const brokerRawData = {};
+      Promise.all([
+        fetch(`results/results.json`)
+          .then(response => response.json()).then(rawData => {
+            brokerRawData.publisher = rawData;
+          }),
+        fetch(`results/results_subscriber.json`)
+          .then(response => response.json()).then(rawData => {
+            brokerRawData.subscriber = rawData;
+          }),
+      ]).then(() => {
+        const datasets = {};
 
-          brokerRawData.forEach((d, i) => {
-            if (!datasets[d.payloadSizeInByte]) {
-              datasets[d.payloadSizeInByte] = {
-                label: `${d.payloadSizeInByte} B`,
-                borderColor: colors[i % colors.length],
-                fill: false,
-                showLine: true,
-                data: [],
-              }
-            }
+        brokerRawData.publisher.forEach((d, i) => {
+          const dSubscriber = brokerRawData.subscriber[i];
+          if (!datasets[d.payloadSizeInByte]) {
+            datasets[d.payloadSizeInByte] = {
+              label: `${d.payloadSizeInByte} B`,
+              borderColor: colors[i % colors.length],
+              fill: false,
+              showLine: true,
+              data: [],
+            };
+            datasets[`${d.payloadSizeInByte}Subscriber`] = {
+              label: `${d.payloadSizeInByte} B Subscriber`,
+              borderColor: colors[i % colors.length],
+              fill: false,
+              showLine: true,
+              borderDash: [10,5],
+              data: [],
+            };
+          }
 
-            datasets[d.payloadSizeInByte].data.push({
-              x: d.messagesPerSecond,
-              y: d.allSentInMs,
-            });
+          datasets[d.payloadSizeInByte].data.push({
+            x: d.messagesPerSecond,
+            y: d.allSentInMs,
           });
-
-          draw('Live', datasets);
+          datasets[`${d.payloadSizeInByte}Subscriber`].data.push({
+            x: d.messagesPerSecond,
+            y: dSubscriber.allReceivedInMs,
+          });
         });
+
+        draw('Live', datasets);
+      });
     } else {
       const brokers = ['rabbitmq', 'emqttd', 'mosca', 'mosquitto'];
       const combinedDisplayedPayloadSize = 1024;
