@@ -49,6 +49,7 @@ async function init () {
         param.done = true;
         fs.writeFileSync(resultJsonPath, JSON.stringify(results));
         fs.writeFileSync(paramsJsonPath, JSON.stringify(params));
+        await sleep(1); // so we can distinguish tests in the subscriber based on no messages received
     }
 }
 
@@ -121,6 +122,10 @@ function generateParams () {
     }
 
     return params;
+}
+
+function sleep (seconds) {
+    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 
 init();
