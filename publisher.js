@@ -4,6 +4,10 @@ const NanoTimer = require('nanotimer');
 const now = require('performance-now');
 const fs = require('fs');
 
+const log = require('./utils/log');
+const connect = require('./utils/connect');
+
+
 // config
 const resultJsonPath = 'results/results.json';
 const paramsJsonPath = 'params.json';
@@ -22,10 +26,6 @@ const messagesPerSecond = {
 const bytePerSecondCap = 50 * Math.pow(1024, 2);
 // const bytePerSecondCap = Number.POSITIVE_INFINITY;
 
-const serverUrl = `mqtt://${ process.env.MQTT_HOST || 'test.mosquitto.org' }`;
-
-console.log(`Trying to connect to ${serverUrl}`);
-
 async function init () {
     let params = [];
     if (resumeLastTest && fs.existsSync(paramsJsonPath)) {
@@ -36,7 +36,7 @@ async function init () {
     }
     const paramsToTest = params.filter(param => !param.done);
 
-    console.log(`Total execution will take at least: ${paramsToTest.length * testDurationInSeconds} seconds`);
+    log(`Total execution will take at least: ${paramsToTest.length * testDurationInSeconds} seconds`);
 
     let results = [];
     if (resumeLastTest && fs.existsSync(resultJsonPath)) {
@@ -54,7 +54,7 @@ async function init () {
 }
 
 async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
-    console.log(`${(new Date()).toISOString()} | Starting test with payload size ${currentPayloadSizeInByte} B and ${currentMessagesPerSecond} msg/s`);
+    log(`Starting test with payload size ${currentPayloadSizeInByte} B and ${currentMessagesPerSecond} msg/s`);
     const messageCount = Math.ceil(testDurationInSeconds * currentMessagesPerSecond);
     const intervalInMilliseconds = 1000 / currentMessagesPerSecond;
 
@@ -63,12 +63,7 @@ async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
     const data = Array(messageCount).fill().map(() => crypto.randomBytes(currentPayloadSizeInByte));
     const dataGenerationInMs = now() - start;
 
-    const client = mqtt.connect(serverUrl);
-    await new Promise(resolve => {
-        client.on('connect', () => {
-            return resolve();
-        });
-    });
+    const client = await connect();
 
     const timer = new NanoTimer();
 
