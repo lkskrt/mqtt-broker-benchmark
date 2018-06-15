@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const mqtt = require('mqtt');
 const NanoTimer = require('nanotimer');
 const now = require('performance-now');
 const fs = require('fs');
@@ -13,20 +12,21 @@ const resultJsonPath = 'results/results.json';
 const paramsJsonPath = 'params.json';
 const resumeLastTest = false;
 const testDurationInSeconds = 10;
+const timeoutInMilliseconds = 5 * 60 * 1000;
 const payloadSizeInByte = {
     start: 2,
     end: Math.pow(1024, 2),
     stepFactor: 8,
 };
 const messagesPerSecond = {
-    start: 1000,
+    start: 10000,
     end: 80000,
     stepSize: 10000,
 };
 const bytePerSecondCap = 50 * Math.pow(1024, 2);
 // const bytePerSecondCap = Number.POSITIVE_INFINITY;
 
-async function init () {
+async function init() {
     let params = [];
     if (resumeLastTest && fs.existsSync(paramsJsonPath)) {
         params = JSON.parse(fs.readFileSync(paramsJsonPath));
@@ -53,13 +53,13 @@ async function init () {
     }
 }
 
-async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
+async function runTest(currentPayloadSizeInByte, currentMessagesPerSecond) {
     log(`Starting test with payload size ${currentPayloadSizeInByte} B and ${currentMessagesPerSecond} msg/s`);
     const messageCount = Math.ceil(testDurationInSeconds * currentMessagesPerSecond);
     const intervalInMilliseconds = 1000 / currentMessagesPerSecond;
 
     let start = now();
-    // generate test data
+    log('Generating data');
     const data = Array(messageCount).fill().map(() => crypto.randomBytes(currentPayloadSizeInByte));
     const dataGenerationInMs = now() - start;
 
@@ -68,28 +68,60 @@ async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
     const timer = new NanoTimer();
 
     start = now();
+
+    let hitTimeout = false;
+
+    log('Start sending messages');
+    
     await new Promise((resolve) => {
         let counter = 0;
+
         const sendData = () => {
             client.publish('data', data[counter], {
                 qos: 0,
             });
             counter++;
         };
+
         sendData();
-        timer.setInterval(() => {
-            if (counter >= data.length) {
-                timer.clearInterval();
-                return resolve();
-            }
-            sendData();
-        }, '', `${intervalInMilliseconds}m`);
+
+        timer.setInterval(
+            () => {
+                if (now() - start > timeoutInMilliseconds) {
+                    log('Hit timeout, stop sending messages')
+                    hitTimeout = true;
+                }
+
+                if (counter >= data.length || hitTimeout) {
+                    timer.clearInterval();
+                    return resolve();
+                }
+                sendData();
+            },
+            '',
+            `${intervalInMilliseconds}m`
+        );
     });
     const executionInMs = now() - start;
 
+    log('Waiting for all messages to be sent');
+
     // mqttjs stores incoming and outgoing messages in stores and sending is deferred
     await new Promise(resolve => {
-        client.end(false, resolve);
+        const timeout = setTimeout(
+            () => {
+                hitTimeout = true;
+                log('Hit timeout, force closing connection');
+
+                client.end(true, resolve);
+            },
+            timeoutInMilliseconds
+        );
+
+        client.end(false, () => {
+            clearTimeout(timeout);
+            resolve();
+        });
     });
     const allSentInMs = now() - start;
 
@@ -99,10 +131,11 @@ async function runTest (currentPayloadSizeInByte, currentMessagesPerSecond) {
         dataGenerationInMs,
         executionInMs,
         allSentInMs,
+        hitTimeout,
     };
 }
 
-function generateParams () {
+function generateParams() {
     const params = [];
     for (let i = messagesPerSecond.start; i < messagesPerSecond.end; i += messagesPerSecond.stepSize) {
         for (let j = payloadSizeInByte.start; j < payloadSizeInByte.end; j *= payloadSizeInByte.stepFactor) {
@@ -119,7 +152,7 @@ function generateParams () {
     return params;
 }
 
-function sleep (seconds) {
+function sleep(seconds) {
     return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 
