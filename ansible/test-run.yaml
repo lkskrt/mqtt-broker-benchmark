@@ -12,6 +12,28 @@
       args:
         chdir: /srv/test
 
+    - pause:
+        seconds: 20
+
+- name: Start subscriber
+  hosts: subscriber
+  become: True
+  tasks:
+    - name: Stop running containers
+      command: "docker-compose stop"
+      args:
+        chdir: /srv/test
+
+    - name: Start subscriber container
+      command: "docker-compose up -d subscriber"
+      args:
+        chdir: /srv/test
+      environment:
+        MQTT_HOST: "{{ groups['broker'][0] }}"
+
+    - pause:
+        seconds: 20
+
 - name: Start publisher
   hosts: publisher
   become: True
@@ -29,12 +51,25 @@
         MQTT_HOST: "{{ groups['broker'][0] }}"
       register: output
 
-    - name: Publisher output
-      debug:
-        var: output
+    # - name: Publisher output
+    #   debug:
+    #     var: output
 
     - name: Fetch the results
       fetch:
         src: /srv/test/results/results.json
         dest: "../results/{{ item }}_results.json"
+        flat: yes
+
+    - pause:
+        seconds: 20
+
+- name: Fetch subscriber results
+  hosts: subscriber
+  become: True
+  tasks:
+    - name: Fetch the results
+      fetch:
+        src: /srv/test/results/results_subscriber.json
+        dest: "../results/{{ item }}_results_subscriber.json"
         flat: yes

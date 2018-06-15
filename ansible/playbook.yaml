@@ -22,7 +22,7 @@
         # spot_price: 0.1
         # spot_wait_timeout: 600
         # spot_launch_group: benchmark
-        count: 2
+        count: 3
       register: ec2
 
     - name: "Add {{ ec2.instances.0.public_ip }} to host groups"
@@ -32,14 +32,27 @@
         ansible_user: ubuntu
         ansible_python_interpreter: /usr/bin/python3
         groups:
-          - publisher
+          - broker
           - launched
 
     - name: "Add {{ ec2.instances.1.public_ip }} to host groups"
       add_host:
         hostname: "{{ ec2.instances.1.public_ip }}"
+        ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+        ansible_user: ubuntu
+        ansible_python_interpreter: /usr/bin/python3
         groups:
-          - broker
+          - publisher
+          - launched
+
+    - name: "Add {{ ec2.instances.2.public_ip }} to host groups"
+      add_host:
+        hostname: "{{ ec2.instances.2.public_ip }}"
+        ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+        ansible_user: ubuntu
+        ansible_python_interpreter: /usr/bin/python3
+        groups:
+          - subscriber
           - launched
 
     - name: Wait for SSH to come up
@@ -51,18 +64,22 @@
         state: started
       with_items: "{{ ec2.instances }}"
 
-    - debug:
-        var: ec2.instances
+    # - debug:
+    #     var: ec2.instances
 
 - name: Setup instances
   hosts: launched
   become: True
+  vars:
+    repo: 'https://github.com/lukaskorte/mqtt-performance-test.git'
+    version: master
   roles:
     - angstwad.docker_ubuntu
   tasks:
     - name: Fetching code
       git:
-        repo: 'https://github.com/lukaskorte/mqtt-performance-test.git'
+        repo: "{{ repo }}"
+        version: "{{ version }}"
         dest: /srv/test
 
 - name: "Instance IPs"
@@ -75,6 +92,9 @@
     - name: "Publisher IP"
       debug:
         var: groups['publisher'][0]
+    - name: "Subscriber IP"
+      debug:
+        var: groups['subscriber'][0]
 
 
 # Ansible does not support looping over playbooks :/

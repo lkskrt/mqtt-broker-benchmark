@@ -9,6 +9,15 @@ services:
       - './:/var/app'
     working_dir: /var/app
 
+  subscriber:
+    image: node:10
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+    command: "sh -c 'npm install && node subscriber.js'"
+    volumes:
+      - './:/var/app'
+    working_dir: /var/app
+
   nginx:
     image: nginx:mainline-alpine
     volumes:
