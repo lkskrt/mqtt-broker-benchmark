@@ -8,6 +8,15 @@ services:
     volumes:
       - './:/var/app'
     working_dir: /var/app
+  
+  subscriber:
+    image: node:10
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+    command: "sh -c 'npm install && node subscriber.js'"
+    volumes:
+      - './:/var/app'
+    working_dir: /var/app
 
   nginx:
     image: nginx:mainline-alpine
@@ -37,7 +46,13 @@ services:
     ports:
       - '1883:1883'
       # - '80:80'
-
+  
+  aedes:
+    image: moscajs/aedes:latest
+    stop_signal: SIGINT
+    command: --host 0.0.0.0
+    ports:
+      - '1883:1883'
   mosquitto:
     image: eclipse-mosquitto:1.4.12
     ports:
