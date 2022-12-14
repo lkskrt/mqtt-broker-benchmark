@@ -48,7 +48,11 @@ Then start up the broker using:
 
     docker-compose up -d ${MQTT_HOST}
 
-Now you can run the publisher to send data:
+Now you can run the subscriber to receive data:
+
+    docker-compose run --rm subscriber
+
+And in another window you can run the publisher to send data:
 
     docker-compose run --rm publisher
 
